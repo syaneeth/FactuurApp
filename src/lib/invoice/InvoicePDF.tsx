@@ -80,10 +80,7 @@ export function InvoicePdf({
         <View style={[styles.row, styles.header]}>
           {/* Links: logo + titel */}
           <View style={[styles.col, styles.headerLeft]}>
-            <Image
-              src="http://localhost:3000/logo-edk.png"
-              style={styles.logo}
-            />
+            <Image src="/logo-edk.png" style={styles.logo} />
             <Text style={[styles.title, { marginTop: 8 }]}>Factuur</Text>
           </View>
 
