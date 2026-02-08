@@ -1,7 +1,17 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { PDFDownloadLink, PDFViewer } from "@react-pdf/renderer";
+import dynamic from "next/dynamic";
+
+const PDFDownloadLink = dynamic(
+  () => import("@react-pdf/renderer").then((m) => m.PDFDownloadLink),
+  { ssr: false }
+);
+
+const PDFViewer = dynamic(
+  () => import("@react-pdf/renderer").then((m) => m.PDFViewer),
+  { ssr: false }
+);
 import { InvoicePdf } from "../../lib/invoice/InvoicePDF";
 import type {
   Company,
