@@ -191,13 +191,6 @@ export function InvoicePdf({
             <Text>{formatEUR(totalPayable)}</Text>
           </View>
         </View>
-
-        {/* Footer note */}
-        <View style={styles.footer}>
-          <Text>
-            Gelieve te betalen binnen 14 dagen op rekening {company.iban ?? "-"} t.n.v. {company.name} onder vermelding van het factuurnummer.
-          </Text>
-        </View>
       </Page>
     </Document>
   );

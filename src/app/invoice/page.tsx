@@ -1,9 +1,15 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { PDFDownloadLink } from "@react-pdf/renderer";
+import { PDFDownloadLink, PDFViewer } from "@react-pdf/renderer";
 import { InvoicePdf } from "../../lib/invoice/InvoicePDF";
-import type { Company, Customer, Invoice, InvoiceLine, VatMode } from "../../lib/invoice/types";
+import type {
+  Company,
+  Customer,
+  Invoice,
+  InvoiceLine,
+  VatMode,
+} from "../../lib/invoice/types";
 import { formatEUR, invoiceSubtotal } from "../../lib/invoice/calc";
 
 function toNumber(v: string) {
@@ -11,8 +17,61 @@ function toNumber(v: string) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function SectionCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-200">
+      <div className="border-b border-gray-100 px-5 py-4">
+        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+        {subtitle ? <p className="mt-1 text-sm text-gray-500">{subtitle}</p> : null}
+      </div>
+      <div className="px-5 py-4">{children}</div>
+    </section>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-sm font-medium text-gray-700">{label}</label>
+      {children}
+      {hint ? <p className="text-xs text-gray-500">{hint}</p> : null}
+    </div>
+  );
+}
+
+const inputBase =
+  "w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 " +
+  "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+
+const buttonPrimary =
+  "inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white " +
+  "hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-60";
+
+const buttonSecondary =
+  "inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 " +
+  "hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2";
+
+const buttonDangerLink =
+  "text-sm font-semibold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 rounded-md px-2 py-1";
+
 export default function InvoicePage() {
-  // --- Bedrijf (later uit settings/db) ---
+  // --- Bedrijf ---
   const company: Company = {
     name: "EDK Installatie",
     legalName: "EDK Installatie",
@@ -27,7 +86,7 @@ export default function InvoicePage() {
     iban: "NLINGBxxxxxxxxxxxx",
   };
 
-  // --- Klant (later uit klantenlijst/db) ---
+  // --- Klant ---
   const [customer, setCustomer] = useState<Customer>({
     name: "Bedrijf B.V.",
     attn: "Dhr. J. Janssen",
@@ -53,6 +112,9 @@ export default function InvoicePage() {
       { qty: 4, description: "Broeken zonder bedrukking", unitPrice: 29 },
     ],
   });
+
+  // Preview toggle on mobile
+  const [showPreview, setShowPreview] = useState(false);
 
   const subtotal = useMemo(() => invoiceSubtotal(invoice), [invoice]);
 
@@ -80,252 +142,330 @@ export default function InvoicePage() {
     [company, customer, invoice]
   );
 
+  const vatLabel =
+    invoice.vatMode === "reverse_charge"
+      ? "BTW verlegd"
+      : invoice.vatMode === "zero"
+      ? "BTW 0%"
+      : "BTW (later)";
+
   return (
-    <main className="p-6 space-y-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Factuur maken</h1>
-          <p className="text-sm opacity-70">Regels bewerken + PDF downloaden</p>
-        </div>
-
-        <PDFDownloadLink
-          document={pdfDoc}
-          fileName={`${invoice.invoiceNumber}.pdf`}
-          className="rounded-xl border px-4 py-2"
-        >
-          {({ loading }) => (loading ? "PDF maken..." : "Download PDF")}
-        </PDFDownloadLink>
-      </div>
-
-      {/* Factuurmeta */}
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border p-4 space-y-3">
-          <h2 className="font-semibold">Factuur</h2>
-
-          <div className="space-y-1">
-            <label className="text-sm opacity-70">Factuurnummer</label>
-            <input
-              className="w-full rounded-xl border px-3 py-2"
-              value={invoice.invoiceNumber}
-              onChange={(e) => setInvoice((p) => ({ ...p, invoiceNumber: e.target.value }))}
-            />
+    <main className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* Top bar */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Factuur maken</h1>
+            <p className="mt-1 text-sm text-gray-600">
+              Vul de gegevens in en bekijk rechts meteen hoe de PDF eruitziet.
+            </p>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm opacity-70">Factuurdatum</label>
-            <input
-              type="date"
-              className="w-full rounded-xl border px-3 py-2"
-              value={invoice.invoiceDate}
-              onChange={(e) => setInvoice((p) => ({ ...p, invoiceDate: e.target.value }))}
-            />
-          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button className={buttonSecondary} type="button" onClick={addLine}>
+              + Regel toevoegen
+            </button>
 
-          <div className="space-y-1">
-            <label className="text-sm opacity-70">Vervaldatum</label>
-            <input
-              type="date"
-              className="w-full rounded-xl border px-3 py-2"
-              value={invoice.dueDate}
-              onChange={(e) => setInvoice((p) => ({ ...p, dueDate: e.target.value }))}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm opacity-70">Referentie</label>
-            <input
-              className="w-full rounded-xl border px-3 py-2"
-              value={invoice.reference ?? ""}
-              onChange={(e) => setInvoice((p) => ({ ...p, reference: e.target.value }))}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm opacity-70">BTW modus</label>
-            <select
-              className="w-full rounded-xl border px-3 py-2"
-              value={invoice.vatMode}
-              onChange={(e) => setInvoice((p) => ({ ...p, vatMode: e.target.value as VatMode }))}
+            {/* Mobile preview toggle */}
+            <button
+              className={`${buttonSecondary} lg:hidden`}
+              type="button"
+              onClick={() => setShowPreview((v) => !v)}
             >
-              <option value="reverse_charge">BTW verlegd</option>
-              <option value="zero">0%</option>
-              <option value="standard">Standaard (later: 21%/9%)</option>
-            </select>
+              {showPreview ? "Terug naar bewerken" : "Preview bekijken"}
+            </button>
+
+            <PDFDownloadLink
+              document={pdfDoc}
+              fileName={`${invoice.invoiceNumber}.pdf`}
+              className={buttonPrimary}
+            >
+              {({ loading }) => (loading ? "PDF maken..." : "Download PDF")}
+            </PDFDownloadLink>
           </div>
         </div>
 
-        {/* Klant */}
-        <div className="rounded-2xl border p-4 space-y-3 md:col-span-2">
-          <h2 className="font-semibold">Klant</h2>
+        {/* Layout: editor + preview */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_520px]">
+          {/* Editor column */}
+          <div className={`${showPreview ? "hidden" : "block"} lg:block space-y-6`}>
+            <div className="grid gap-6 lg:grid-cols-3">
+              <SectionCard
+                title="Factuurgegevens"
+                subtitle="Deze info komt bovenaan je factuur te staan."
+              >
+                <div className="space-y-4">
+                  <Field label="Factuurnummer" hint="Bijv. F-001">
+                    <input
+                      className={inputBase}
+                      value={invoice.invoiceNumber}
+                      onChange={(e) =>
+                        setInvoice((p) => ({ ...p, invoiceNumber: e.target.value }))
+                      }
+                      placeholder="F-001"
+                    />
+                  </Field>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-sm opacity-70">Naam</label>
-              <input
-                className="w-full rounded-xl border px-3 py-2"
-                value={customer.name}
-                onChange={(e) => setCustomer((p) => ({ ...p, name: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm opacity-70">T.a.v.</label>
-              <input
-                className="w-full rounded-xl border px-3 py-2"
-                value={customer.attn ?? ""}
-                onChange={(e) => setCustomer((p) => ({ ...p, attn: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm opacity-70">Adres</label>
-              <input
-                className="w-full rounded-xl border px-3 py-2"
-                value={customer.address}
-                onChange={(e) => setCustomer((p) => ({ ...p, address: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm opacity-70">Stad + postcode</label>
-              <input
-                className="w-full rounded-xl border px-3 py-2"
-                value={customer.city}
-                onChange={(e) => setCustomer((p) => ({ ...p, city: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm opacity-70">Land</label>
-              <input
-                className="w-full rounded-xl border px-3 py-2"
-                value={customer.country}
-                onChange={(e) => setCustomer((p) => ({ ...p, country: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm opacity-70">BTW nummer</label>
-              <input
-                className="w-full rounded-xl border px-3 py-2"
-                value={customer.vat ?? ""}
-                onChange={(e) => setCustomer((p) => ({ ...p, vat: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm opacity-70">Klantnummer</label>
-              <input
-                className="w-full rounded-xl border px-3 py-2"
-                value={customer.customerNumber ?? ""}
-                onChange={(e) => setCustomer((p) => ({ ...p, customerNumber: e.target.value }))}
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Regels */}
-      <section className="rounded-2xl border p-4 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-semibold">Factuurregels</h2>
-          <button className="rounded-xl border px-3 py-2" onClick={addLine}>
-            + Regel toevoegen
-          </button>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="opacity-70">
-              <tr className="text-left">
-                <th className="py-2 pr-2 w-[110px]">Aantal</th>
-                <th className="py-2 pr-2">Omschrijving</th>
-                <th className="py-2 pr-2 w-[140px] text-right">Prijs/stuk</th>
-                <th className="py-2 pr-2 w-[140px] text-right">Bedrag</th>
-                <th className="py-2 w-[80px]"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoice.lines.map((l, idx) => {
-                const amount = l.qty * l.unitPrice;
-                return (
-                  <tr key={idx} className="border-t">
-                    <td className="py-2 pr-2">
-                      <div className="flex gap-2">
-                        <input
-                          className="w-[60px] rounded-xl border px-2 py-1"
-                          value={String(l.qty)}
-                          onChange={(e) => updateLine(idx, { qty: toNumber(e.target.value) })}
-                        />
-                        <input
-                          className="w-[60px] rounded-xl border px-2 py-1"
-                          placeholder="uur"
-                          value={l.unit ?? ""}
-                          onChange={(e) => updateLine(idx, { unit: e.target.value })}
-                        />
-                      </div>
-                    </td>
-
-                    <td className="py-2 pr-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field label="Factuurdatum">
                       <input
-                        className="w-full rounded-xl border px-2 py-1"
-                        placeholder="Omschrijving"
-                        value={l.description}
-                        onChange={(e) => updateLine(idx, { description: e.target.value })}
+                        type="date"
+                        className={inputBase}
+                        value={invoice.invoiceDate}
+                        onChange={(e) =>
+                          setInvoice((p) => ({ ...p, invoiceDate: e.target.value }))
+                        }
                       />
-                    </td>
+                    </Field>
 
-                    <td className="py-2 pr-2 text-right">
+                    <Field label="Vervaldatum">
                       <input
-                        className="w-full rounded-xl border px-2 py-1 text-right"
-                        value={String(l.unitPrice)}
-                        onChange={(e) => updateLine(idx, { unitPrice: toNumber(e.target.value) })}
+                        type="date"
+                        className={inputBase}
+                        value={invoice.dueDate}
+                        onChange={(e) =>
+                          setInvoice((p) => ({ ...p, dueDate: e.target.value }))
+                        }
                       />
-                    </td>
+                    </Field>
+                  </div>
 
-                    <td className="py-2 pr-2 text-right">
-                      {formatEUR(amount)}
-                    </td>
+                  <Field label="Referentie" hint="Bijv. offerte nummer (optioneel)">
+                    <input
+                      className={inputBase}
+                      value={invoice.reference ?? ""}
+                      onChange={(e) =>
+                        setInvoice((p) => ({ ...p, reference: e.target.value }))
+                      }
+                      placeholder="Offerte OF-0013"
+                    />
+                  </Field>
 
-                    <td className="py-2 text-right">
-                      <button
-                        className="rounded-xl border px-2 py-1"
-                        onClick={() => removeLine(idx)}
-                        title="Verwijderen"
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  <Field label="BTW" hint="Voor NL/BE breiden we dit later uit.">
+                    <select
+                      className={inputBase}
+                      value={invoice.vatMode}
+                      onChange={(e) =>
+                        setInvoice((p) => ({
+                          ...p,
+                          vatMode: e.target.value as VatMode,
+                        }))
+                      }
+                    >
+                      <option value="reverse_charge">BTW verlegd</option>
+                      <option value="zero">0%</option>
+                      <option value="standard">Standaard (later: 21%/9%)</option>
+                    </select>
+                  </Field>
+                </div>
+              </SectionCard>
 
-        <div className="flex justify-end">
-          <div className="w-full max-w-xs rounded-2xl border p-4 space-y-2">
-            <div className="flex justify-between">
-              <span className="opacity-70">Subtotaal</span>
-              <span>{formatEUR(subtotal)}</span>
+              <div className="lg:col-span-2">
+                <SectionCard title="Klantgegevens" subtitle="Wie krijgt deze factuur?">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Bedrijfsnaam">
+                      <input
+                        className={inputBase}
+                        value={customer.name}
+                        onChange={(e) => setCustomer((p) => ({ ...p, name: e.target.value }))}
+                        placeholder="Klantbedrijf B.V."
+                      />
+                    </Field>
+
+                    <Field label="Contactpersoon (t.a.v.)" hint="Optioneel">
+                      <input
+                        className={inputBase}
+                        value={customer.attn ?? ""}
+                        onChange={(e) => setCustomer((p) => ({ ...p, attn: e.target.value }))}
+                        placeholder="Dhr. / Mevr."
+                      />
+                    </Field>
+
+                    <Field label="Adres">
+                      <input
+                        className={inputBase}
+                        value={customer.address}
+                        onChange={(e) => setCustomer((p) => ({ ...p, address: e.target.value }))}
+                        placeholder="Straat + huisnummer"
+                      />
+                    </Field>
+
+                    <Field label="Postcode + plaats">
+                      <input
+                        className={inputBase}
+                        value={customer.city}
+                        onChange={(e) => setCustomer((p) => ({ ...p, city: e.target.value }))}
+                        placeholder="1000 Amsterdam"
+                      />
+                    </Field>
+
+                    <Field label="Land">
+                      <input
+                        className={inputBase}
+                        value={customer.country}
+                        onChange={(e) => setCustomer((p) => ({ ...p, country: e.target.value }))}
+                        placeholder="Nederland"
+                      />
+                    </Field>
+
+                    <Field label="BTW-nummer" hint="Optioneel">
+                      <input
+                        className={inputBase}
+                        value={customer.vat ?? ""}
+                        onChange={(e) => setCustomer((p) => ({ ...p, vat: e.target.value }))}
+                        placeholder="NL123456789B01"
+                      />
+                    </Field>
+
+                    <Field label="Klantnummer" hint="Optioneel">
+                      <input
+                        className={inputBase}
+                        value={customer.customerNumber ?? ""}
+                        onChange={(e) =>
+                          setCustomer((p) => ({ ...p, customerNumber: e.target.value }))
+                        }
+                        placeholder="D810009"
+                      />
+                    </Field>
+                  </div>
+                </SectionCard>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="opacity-70">
-                {invoice.vatMode === "reverse_charge"
-                  ? "BTW verlegd"
-                  : invoice.vatMode === "zero"
-                  ? "BTW 0%"
-                  : "BTW (later)"}
-              </span>
-              <span>{formatEUR(0)}</span>
-            </div>
-            <div className="flex justify-between font-semibold pt-2 border-t">
-              <span>Te betalen</span>
-              <span>{formatEUR(subtotal)}</span>
+
+            <SectionCard
+              title="Factuurregels"
+              subtitle="Voeg producten/diensten toe. Korting? maak een regel met een negatief bedrag."
+            >
+              <div className="space-y-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-gray-500">
+                      <tr className="text-left">
+                        <th className="py-2 pr-2 w-[130px]">Aantal</th>
+                        <th className="py-2 pr-2">Omschrijving</th>
+                        <th className="py-2 pr-2 w-[150px] text-right">Prijs / stuk</th>
+                        <th className="py-2 pr-2 w-[150px] text-right">Bedrag</th>
+                        <th className="py-2 w-[100px]"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoice.lines.map((l, idx) => {
+                        const amount = l.qty * l.unitPrice;
+
+                        return (
+                          <tr key={idx} className="border-t border-gray-100">
+                            <td className="py-3 pr-2">
+                              <div className="flex gap-2">
+                                <input
+                                  className={`${inputBase} w-[70px] px-2 py-2`}
+                                  inputMode="decimal"
+                                  value={String(l.qty)}
+                                  onChange={(e) =>
+                                    updateLine(idx, { qty: toNumber(e.target.value) })
+                                  }
+                                />
+                                <input
+                                  className={`${inputBase} w-[60px] px-2 py-2`}
+                                  placeholder="uur"
+                                  value={l.unit ?? ""}
+                                  onChange={(e) => updateLine(idx, { unit: e.target.value })}
+                                />
+                              </div>
+                            </td>
+
+                            <td className="py-3 pr-2">
+                              <input
+                                className={inputBase}
+                                placeholder="Bijv. installatiewerk, materiaal, uren..."
+                                value={l.description}
+                                onChange={(e) =>
+                                  updateLine(idx, { description: e.target.value })
+                                }
+                              />
+                            </td>
+
+                            <td className="py-3 pr-2 text-right">
+                              <input
+                                className={`${inputBase} text-right`}
+                                inputMode="decimal"
+                                value={String(l.unitPrice)}
+                                onChange={(e) =>
+                                  updateLine(idx, { unitPrice: toNumber(e.target.value) })
+                                }
+                              />
+                            </td>
+
+                            <td className="py-3 pr-2 text-right font-medium text-gray-900">
+                              {formatEUR(amount)}
+                            </td>
+
+                            <td className="py-3 text-right">
+                              <button
+                                type="button"
+                                className={buttonDangerLink}
+                                onClick={() => removeLine(idx)}
+                              >
+                                Verwijderen
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <button className={buttonSecondary} type="button" onClick={addLine}>
+                    + Regel toevoegen
+                  </button>
+
+                  <div className="text-sm text-gray-600">
+                    Subtotaal: <span className="font-semibold">{formatEUR(subtotal)}</span>
+                    <span className="mx-2 text-gray-300">|</span>
+                    {vatLabel}: <span className="font-semibold">{formatEUR(0)}</span>
+                    <span className="mx-2 text-gray-300">|</span>
+                    Te betalen:{" "}
+                    <span className="font-semibold">{formatEUR(subtotal)}</span>
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
+          </div>
+
+          {/* Preview column */}
+          <div className={`${showPreview ? "block" : "hidden"} lg:block`}>
+            <div className="lg:sticky lg:top-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold text-gray-900">Live preview</h2>
+                <PDFDownloadLink
+                  document={pdfDoc}
+                  fileName={`${invoice.invoiceNumber}.pdf`}
+                  className={buttonPrimary}
+                >
+                  {({ loading }) => (loading ? "PDF..." : "Download")}
+                </PDFDownloadLink>
+              </div>
+
+              <div className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-200 overflow-hidden">
+                {/* Real PDF viewer */}
+                <div className="h-[75vh]">
+                  <PDFViewer
+                    style={{ width: "100%", height: "100%", border: "none" }}
+                    showToolbar
+                  >
+                    {pdfDoc}
+                  </PDFViewer>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-500">
+                Tip: als je een veld aanpast, wordt de preview direct bijgewerkt.
+              </p>
             </div>
           </div>
         </div>
-      </section>
+      </div>
     </main>
   );
 }
