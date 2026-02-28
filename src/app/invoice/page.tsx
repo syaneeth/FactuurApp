@@ -20,7 +20,13 @@ import type {
   InvoiceLine,
   VatMode,
 } from "../../lib/invoice/types";
-import { formatEUR, invoiceSubtotal } from "../../lib/invoice/calc";
+import {
+  formatEUR,
+  invoiceSubtotal,
+  invoiceVatAmount,
+  invoiceTotal,
+  vatLabel,
+} from "../../lib/invoice/calc";
 
 function toNumber(v: string) {
   const n = Number(v.replace(",", "."));
@@ -46,6 +52,8 @@ function SectionCard({
     </section>
   );
 }
+
+
 
 function Field({
   label,
@@ -85,48 +93,44 @@ export default function InvoicePage() {
   const company: Company = {
     name: "EDK Installatie",
     legalName: "EDK Installatie",
-    address: "Straat 1",
-    city: "1000 Gouda",
+    address: "Han Hollanderweg 80",
+    city: "2807AG Gouda",
     country: "Nederland",
-    phone: "+32 0 00 00 00",
-    email: "info@edk-installatie.nl",
-    website: "www.edk-installatie.nl",
+    phone: "+31684579047",
+    email: "miloudbelali@hotmail.com",
+    website: "",
     kvk: "99617382",
-    vat: "NL00539939B14",
-    iban: "NLINGBxxxxxxxxxxxx",
+    vat: "NL005399393B14",
+    iban: "NL65INGB0116138696",
   };
 
   // --- Klant ---
   const [customer, setCustomer] = useState<Customer>({
-    name: "Bedrijf B.V.",
-    attn: "Dhr. J. Janssen",
-    address: "Beenhouwersstraat 81",
-    city: "1000 Amsterdam",
+    name: "EMNA elektra",
+    attn: "Dhr. Nazim",
+    address: "Plevierstraat 26",
+    city: "3145CR Maassluis",
     country: "Nederland",
-    vat: "NL123456789801",
+    vat: "NL126877270B01",
     customerNumber: "D810009",
   });
 
   // --- Factuur ---
   const [invoice, setInvoice] = useState<Invoice>({
     invoiceNumber: "F-001",
-    invoiceDate: "2024-01-01",
+    invoiceDate: "2026-02-27",
     dueDate: "2024-01-15",
     reference: "Offerte OF-0013",
     vatMode: "reverse_charge",
+    vatRate: 0.21,
     lines: [
-      { qty: 8, unit: "uur", description: "Advies en consultancy", unitPrice: 75 },
-      { qty: 1, description: "Onderhoud boekhoudsysteem", unitPrice: 25 },
-      { qty: 9, description: "T-Shirts 2-zijdig bedrukt", unitPrice: 14 },
-      { qty: 1, description: "20% korting", unitPrice: -25.2 },
-      { qty: 4, description: "Broeken zonder bedrukking", unitPrice: 29 },
+      { qty: 73, unit: "uur", description: "Elektra", unitPrice: 40 },
     ],
   });
 
   // Preview toggle on mobile
   const [showPreview, setShowPreview] = useState(false);
 
-  const subtotal = useMemo(() => invoiceSubtotal(invoice), [invoice]);
 
   const addLine = () => {
     const newLine: InvoiceLine = { qty: 1, unit: "", description: "", unitPrice: 0 };
@@ -152,12 +156,12 @@ export default function InvoicePage() {
     [company, customer, invoice]
   );
 
-  const vatLabel =
-    invoice.vatMode === "reverse_charge"
-      ? "BTW verlegd"
-      : invoice.vatMode === "zero"
-      ? "BTW 0%"
-      : "BTW (later)";
+
+  const subtotal = useMemo(() => invoiceSubtotal(invoice), [invoice]);
+  const vat = useMemo(() => invoiceVatAmount(invoice), [invoice]);
+  const total = useMemo(() => invoiceTotal(invoice), [invoice]);
+  
+  const vatText = useMemo(() => vatLabel(invoice), [invoice]);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -251,20 +255,35 @@ export default function InvoicePage() {
                     />
                   </Field>
 
-                  <Field label="BTW" hint="Voor NL/BE breiden we dit later uit.">
+                  <Field label="BTW" hint="Kies BTW verlegd/0% of standaard 21%/9%.">
                     <select
                       className={inputBase}
-                      value={invoice.vatMode}
-                      onChange={(e) =>
+                      value={
+                        invoice.vatMode === "standard"
+                          ? `standard:${invoice.vatRate ?? 0.21}`
+                          : invoice.vatMode
+                      }
+                      onChange={(e) => {
+                        const v = e.target.value;
+
+                        if (v.startsWith("standard:")) {
+                          const rate = Number(v.split(":")[1]); // 0.21 or 0.09
+                          setInvoice((p) => ({ ...p, vatMode: "standard", vatRate: rate }));
+                          return;
+                        }
+
+                        // reverse_charge or zero
                         setInvoice((p) => ({
                           ...p,
-                          vatMode: e.target.value as VatMode,
-                        }))
-                      }
+                          vatMode: v as VatMode,
+                          // keep vatRate around or clear it; either is fine
+                        }));
+                      }}
                     >
                       <option value="reverse_charge">BTW verlegd</option>
                       <option value="zero">0%</option>
-                      <option value="standard">Standaard (later: 21%/9%)</option>
+                      <option value="standard:0.21">Standaard 21%</option>
+                      <option value="standard:0.09">Standaard 9%</option>
                     </select>
                   </Field>
                 </div>
@@ -433,10 +452,9 @@ export default function InvoicePage() {
                   <div className="text-sm text-gray-600">
                     Subtotaal: <span className="font-semibold">{formatEUR(subtotal)}</span>
                     <span className="mx-2 text-gray-300">|</span>
-                    {vatLabel}: <span className="font-semibold">{formatEUR(0)}</span>
+                    {vatText}: <span className="font-semibold">{formatEUR(vat)}</span>
                     <span className="mx-2 text-gray-300">|</span>
-                    Te betalen:{" "}
-                    <span className="font-semibold">{formatEUR(subtotal)}</span>
+                    Te betalen: <span className="font-semibold">{formatEUR(total)}</span>
                   </div>
                 </div>
               </div>

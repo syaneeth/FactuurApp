@@ -37,5 +37,6 @@ export type Invoice = {
   dueDate: string; // YYYY-MM-DD
   reference?: string;
   vatMode: VatMode;
+  vatRate?: number; // 0.21 or 0.09 when vatMode === "standard"
   lines: InvoiceLine[];
 };
